@@ -1,0 +1,56 @@
+# Arquivos temporários do PowerShell
+*.tmp
+*.temp
+*.log
+
+# Arquivos de backup
+*.bak
+*.backup
+
+# Arquivos de configuração local
+*.local
+*.user
+
+# Arquivos de cache
+.cache/
+*.cache
+
+# Arquivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Arquivos do Windows
+Thumbs.db
+Desktop.ini
+
+# Arquivos de sistema
+.DS_Store
+*.DS_Store
+
+# Arquivos de teste
+test-*.ps1
+*.test.ps1
+
+# Arquivos de documentação temporária
+docs/temp/
+*.md.bak
+
+# Arquivos de configuração sensíveis
+*.key
+*.pem
+*.p12
+secrets.ps1
+config.ps1
+
+# Arquivos de output
+output/
+results/
+*.output
+*.result
+
+# Arquivos de debug
+debug/
+*.debug
+*.trace 
