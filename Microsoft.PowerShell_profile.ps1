@@ -5,7 +5,7 @@ Write-Host ""
 
 # Menu de comandos compacto
 function Show-CompactMenu {
-    $version = "v1.0.0"
+    $version = "v1.1.0"
     Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║                              COMANDOS DISPONÍVEIS                            ║" -ForegroundColor Cyan
     Write-Host "║                                    $version                                    ║" -ForegroundColor Cyan
@@ -120,9 +120,117 @@ function refreshProfile {
 }
 
 
-# Alias para o script ListFilesWithContent
+# Função para listar arquivos e seu conteúdo
 function ListFilesWithContent {
-    C:\Scripts\ListFilesWithContent.ps1
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$Path = (Get-Location).Path,
+        
+        [Parameter(Mandatory=$false)]
+        [string[]]$IncludeExtensions = @('*.ps1', '*.txt', '*.md', '*.json', '*.xml', '*.config'),
+        
+        [Parameter(Mandatory=$false)]
+        [string[]]$ExcludeExtensions = @('*.exe', '*.dll', '*.pdb', '*.zip', '*.7z'),
+        
+        [Parameter(Mandatory=$false)]
+        [int]$MaxFileSizeKB = 100,
+        
+        [Parameter(Mandatory=$false)]
+        [switch]$Help
+    )
+
+    if ($Help) {
+        Write-Host "NOME" -ForegroundColor Cyan
+        Write-Host "    ListFilesWithContent"
+        Write-Host ""
+        Write-Host "SINOPSIS" -ForegroundColor Cyan
+        Write-Host "    Lista arquivos em um diretório e exibe seu conteúdo em um arquivo temporário."
+        Write-Host ""
+        Write-Host "PARÂMETROS" -ForegroundColor Cyan
+        Write-Host "    -Path <string>"
+        Write-Host "        Caminho do diretório a ser analisado. Padrão: diretório atual."
+        Write-Host ""
+        Write-Host "    -IncludeExtensions <string[]>"
+        Write-Host "        Extensões de arquivo a incluir. Padrão: ps1, txt, md, json, xml, config"
+        Write-Host ""
+        Write-Host "    -ExcludeExtensions <string[]>"
+        Write-Host "        Extensões de arquivo a excluir. Padrão: exe, dll, pdb, zip, 7z"
+        Write-Host ""
+        Write-Host "    -MaxFileSizeKB <int>"
+        Write-Host "        Tamanho máximo do arquivo em KB. Padrão: 100 KB"
+        Write-Host ""
+        Write-Host "    -Help"
+        Write-Host "        Exibe esta mensagem de ajuda."
+        return
+    }
+
+    # Verificar se o caminho existe
+    if (-not (Test-Path $Path)) {
+        Write-Host "Erro: Caminho '$Path' não encontrado." -ForegroundColor Red
+        return
+    }
+
+    # Gerar nome do arquivo temporário
+    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    $tempFile = Join-Path $env:TEMP "files_with_content_$timestamp.txt"
+    
+    Write-Host "Analisando diretório: $Path" -ForegroundColor Cyan
+    Write-Host "Gerando arquivo: $tempFile" -ForegroundColor Cyan
+
+    # Coletar informações
+    $content = @()
+    $content += "=== LISTAGEM DE ARQUIVOS COM CONTEÚDO ==="
+    $content += "Diretório: $Path"
+    $content += "Data/Hora: $(Get-Date)"
+    $content += ""
+
+    # Obter arquivos
+    $files = Get-ChildItem -Path $Path -File -Recurse | 
+             Where-Object { 
+                 $ext = $_.Extension.ToLower()
+                 $includeMatch = $IncludeExtensions | Where-Object { $ext -like $_ }
+                 $excludeMatch = $ExcludeExtensions | Where-Object { $ext -like $_ }
+                 
+                 $includeMatch -and -not $excludeMatch -and $_.Length -le ($MaxFileSizeKB * 1KB)
+             } |
+             Sort-Object FullName
+
+    if ($files.Count -eq 0) {
+        $content += "Nenhum arquivo encontrado com os critérios especificados."
+    } else {
+        $content += "Arquivos encontrados: $($files.Count)"
+        $content += ""
+
+        foreach ($file in $files) {
+            $content += "=" * 80
+            $content += "ARQUIVO: $($file.FullName)"
+            $content += "TAMANHO: $([math]::Round($file.Length / 1KB, 2)) KB"
+            $content += "MODIFICADO: $($file.LastWriteTime)"
+            $content += "=" * 80
+            $content += ""
+
+            try {
+                $fileContent = Get-Content -Path $file.FullName -Raw -ErrorAction Stop
+                $content += $fileContent
+            } catch {
+                $content += "ERRO ao ler arquivo: $($_.Exception.Message)"
+            }
+            
+            $content += ""
+            $content += ""
+        }
+    }
+
+    # Salvar no arquivo temporário
+    $content | Out-File -FilePath $tempFile -Encoding UTF8
+    
+    Write-Host "Arquivo gerado com sucesso!" -ForegroundColor Green
+    Write-Host "Localização: $tempFile" -ForegroundColor Cyan
+    Write-Host "Total de arquivos processados: $($files.Count)" -ForegroundColor Yellow
+    
+    # Abrir o arquivo
+    notepad $tempFile
 }
 
 # Comando para diff de arquivos não preparados (working directory)
@@ -479,10 +587,52 @@ function gitdiff-branches {
     # 5) Gera o diff completo
     # Sempre compara com a branch remota (origin/master) quando não especificado SourceBranch
     $diffOutput = git --no-pager diff origin/$TargetBranch...HEAD
-    # Se não há diferenças entre branches, inclui staged changes
-    if ([string]::IsNullOrWhiteSpace($diffOutput)) {
-        Write-Host "Nenhuma diferença encontrada entre branches. Incluindo staged changes..." -ForegroundColor Yellow
-        $diffOutput = git --no-pager diff --cached
+    
+    # Captura staged changes
+    $stagedDiff = git --no-pager diff --cached
+    
+    # Captura unstaged changes
+    $unstagedDiff = git --no-pager diff
+    
+    # Captura untracked files
+    $untrackedFiles = git ls-files --others --exclude-standard
+    
+    # Combina todas as diferenças para mostrar o estado completo
+    $completeDiff = @()
+    
+    # Adiciona diferenças entre branches
+    if ($diffOutput) {
+        $completeDiff += "=== DIFERENÇAS ENTRE BRANCHES ==="
+        $completeDiff += $diffOutput
+    }
+    
+    # Adiciona staged changes
+    if ($stagedDiff) {
+        if ($completeDiff.Count -gt 0) { $completeDiff += "" }
+        $completeDiff += "=== STAGED CHANGES ==="
+        $completeDiff += $stagedDiff
+    }
+    
+    # Adiciona unstaged changes
+    if ($unstagedDiff) {
+        if ($completeDiff.Count -gt 0) { $completeDiff += "" }
+        $completeDiff += "=== UNSTAGED CHANGES ==="
+        $completeDiff += $unstagedDiff
+    }
+    
+    # Adiciona untracked files
+    if ($untrackedFiles) {
+        if ($completeDiff.Count -gt 0) { $completeDiff += "" }
+        $completeDiff += "=== UNTRACKED FILES ==="
+        $completeDiff += $untrackedFiles
+    }
+    
+    # Se não há nenhuma diferença, mostra mensagem informativa
+    if ($completeDiff.Count -eq 0) {
+        Write-Host "Nenhuma diferença encontrada entre branches e nenhuma alteração no working directory." -ForegroundColor Yellow
+        $diffOutput = "Nenhuma alteração detectada."
+    } else {
+        $diffOutput = $completeDiff -join "`n"
     }
 
     # 6) Filtra a saída se -ignore for usado
