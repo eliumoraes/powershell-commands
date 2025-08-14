@@ -66,8 +66,17 @@ project-dump -Path "C:\MeusProjetos\WebApp"
 #### 2. Analisando Conteúdo de Arquivos
 
 ```powershell
-# Listar arquivos e conteúdo
+# Listar arquivos e conteúdo do diretório atual
 ListFilesWithContent
+
+# Listar apenas arquivos PowerShell e Markdown
+ListFilesWithContent -IncludeExtensions "*.ps1", "*.md"
+
+# Excluir arquivos binários e limitar tamanho
+ListFilesWithContent -ExcludeExtensions "*.exe", "*.dll" -MaxFileSizeKB 50
+
+# Analisar diretório específico
+ListFilesWithContent -Path "C:\MeuProjeto" -MaxFileSizeKB 200
 ```
 
 ### 🛠️ Manutenção do Sistema

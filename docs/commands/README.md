@@ -225,17 +225,39 @@ project-dump -MaxSizeKB 1024
 
 ### ListFilesWithContent
 
-**Descrição**: Lista arquivos e seu conteúdo em um arquivo temporário.
+**Descrição**: Lista arquivos em um diretório e exibe seu conteúdo em um arquivo temporário, com filtros de extensão e limite de tamanho.
 
 **Sintaxe**:
 ```powershell
-ListFilesWithContent
+ListFilesWithContent [-Path <string>] [-IncludeExtensions <string[]>] [-ExcludeExtensions <string[]>] [-MaxFileSizeKB <int>] [-Help]
 ```
+
+**Parâmetros**:
+- `-Path <string>`: Caminho do diretório a ser analisado (padrão: diretório atual)
+- `-IncludeExtensions <string[]>`: Extensões de arquivo a incluir (padrão: ps1, txt, md, json, xml, config)
+- `-ExcludeExtensions <string[]>`: Extensões de arquivo a excluir (padrão: exe, dll, pdb, zip, 7z)
+- `-MaxFileSizeKB <int>`: Tamanho máximo do arquivo em KB (padrão: 100)
+- `-Help`: Exibe a ajuda detalhada
 
 **Exemplos**:
 ```powershell
-# Listar arquivos e conteúdo
+# Listar arquivos do diretório atual
 ListFilesWithContent
+
+# Listar arquivos de diretório específico
+ListFilesWithContent -Path "C:\MeuProjeto"
+
+# Incluir apenas arquivos PowerShell e Markdown
+ListFilesWithContent -IncludeExtensions "*.ps1", "*.md"
+
+# Excluir arquivos binários
+ListFilesWithContent -ExcludeExtensions "*.exe", "*.dll"
+
+# Limitar tamanho de arquivos
+ListFilesWithContent -MaxFileSizeKB 50
+
+# Ver ajuda
+ListFilesWithContent -Help
 ```
 
 ---

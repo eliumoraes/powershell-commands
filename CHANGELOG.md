@@ -8,16 +8,16 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
-- Estrutura inicial do projeto
-- Sistema de versionamento
-- Documentação completa
+- Nova implementação completa da função `ListFilesWithContent` com filtros de extensão e limite de tamanho
 
 ### Changed
-- Menu de comandos mais compacto e elegante
-- Melhor formatação visual
+- Função `gitdiff-branches` agora sempre mostra estado completo do working directory
+- Sistema de filtragem de extensões na função `ListFilesWithContent` melhorado
 
 ### Fixed
-- Correção de alinhamento no menu
+- Correção crítica na função `gitdiff-branches` que retornava arquivos vazios
+- Correção de bug na lógica de filtragem de extensões que impedia encontrar arquivos
+- Substituição de alias quebrado `ListFilesWithContent` por implementação funcional
 
 ## [1.0.0] - 2024-12-19
 
