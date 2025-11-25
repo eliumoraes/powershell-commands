@@ -39,6 +39,8 @@ function Show-CompactMenu {
     Write-Host "║      Gera mapa completo do diretório                                         ║" -ForegroundColor Gray
     Write-Host "║    • ListFilesWithContent                                                    ║" -ForegroundColor White
     Write-Host "║      Lista arquivos e conteúdo                                               ║" -ForegroundColor Gray
+    Write-Host "║    • mwm (ou move-windows-to-main-monitor) [-Help]                           ║" -ForegroundColor White
+    Write-Host "║      Move todas as janelas para o monitor principal                           ║" -ForegroundColor Gray
 
     Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
     Write-Host "║  DICA: Use -help em qualquer comando para ver ajuda detalhada                ║" -ForegroundColor Green
@@ -831,3 +833,299 @@ function project-dump {
     Write-Host "Resultado salvo em: $outputFile"
     notepad $outputFile
 }
+
+## Função para mover todas as janelas para o monitor principal
+function move-windows-to-main-monitor {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [switch]$Help
+    )
+
+    if ($Help) {
+        Write-Host "NOME" -ForegroundColor Cyan
+        Write-Host "    move-windows-to-main-monitor"
+        Write-Host ""
+        Write-Host "SINOPSIS" -ForegroundColor Cyan
+        Write-Host "    Move todas as janelas abertas e visíveis para o monitor principal."
+        Write-Host ""
+        Write-Host "DESCRIÇÃO" -ForegroundColor Cyan
+        Write-Host "    Esta função identifica o monitor principal do sistema e move todas as janelas"
+        Write-Host "    de aplicativos visíveis (não minimizadas) para esse monitor. É útil quando"
+        Write-Host "    você está trabalhando com múltiplos monitores e quer organizar todas as"
+        Write-Host "    janelas no monitor principal."
+        Write-Host ""
+        Write-Host "    A função restaura janelas minimizadas antes de movê-las. Todas as janelas"
+        Write-Host "    visíveis são movidas para o monitor principal de forma confiável."
+        Write-Host ""
+        Write-Host "PARÂMETROS" -ForegroundColor Cyan
+        Write-Host "    -Help"
+        Write-Host "        Exibe esta mensagem de ajuda."
+        Write-Host ""
+        Write-Host "EXEMPLOS" -ForegroundColor Cyan
+        Write-Host "    mwm"
+        Write-Host "        Move todas as janelas para o monitor principal (alias curto)"
+        Write-Host ""
+        Write-Host "    move-windows-to-main-monitor"
+        Write-Host "        Move todas as janelas para o monitor principal"
+        Write-Host ""
+        Write-Host "    move-windows-to-main-monitor -Help"
+        Write-Host "        Exibe esta mensagem de ajuda."
+        return
+    }
+
+    try {
+        # Carregar assembly necessário
+        Add-Type -AssemblyName System.Windows.Forms
+        
+        # Definir funções Win32 para mover janelas
+        $signature = @"
+            using System;
+            using System.Runtime.InteropServices;
+            
+            public class Win32Window {
+                [DllImport("user32.dll")]
+                public static extern bool IsWindowVisible(IntPtr hWnd);
+                
+                [DllImport("user32.dll")]
+                public static extern bool IsIconic(IntPtr hWnd);
+                
+                [DllImport("user32.dll")]
+                [return: MarshalAs(UnmanagedType.Bool)]
+                public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+                
+                [DllImport("user32.dll")]
+                public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+                
+                [DllImport("user32.dll")]
+                [return: MarshalAs(UnmanagedType.Bool)]
+                public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+                
+                [DllImport("user32.dll")]
+                public static extern bool IsWindow(IntPtr hWnd);
+                
+                [DllImport("user32.dll")]
+                public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+                
+                [DllImport("user32.dll")]
+                [return: MarshalAs(UnmanagedType.Bool)]
+                public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+                
+                [StructLayout(LayoutKind.Sequential)]
+                public struct RECT {
+                    public int Left;
+                    public int Top;
+                    public int Right;
+                    public int Bottom;
+                }
+                
+                [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+                public struct MONITORINFO {
+                    public int cbSize;
+                    public RECT rcMonitor;
+                    public RECT rcWork;
+                    public uint dwFlags;
+                }
+                
+                public const int SW_RESTORE = 9;
+                public const uint SWP_NOZORDER = 0x0004;
+                public const uint SWP_NOACTIVATE = 0x0010;
+                public const uint SWP_SHOWWINDOW = 0x0040;
+                public const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
+                public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+            }
+"@
+        
+        Add-Type -TypeDefinition $signature
+        
+        # Obter informações do monitor principal
+        $primaryScreen = [System.Windows.Forms.Screen]::AllScreens | Where-Object { $_.Primary -eq $true }
+        
+        if ($null -eq $primaryScreen) {
+            Write-Host "Erro: Não foi possível identificar o monitor principal." -ForegroundColor Red
+            return
+        }
+        
+        $primaryBounds = $primaryScreen.Bounds  # Usar Bounds ao invés de WorkingArea para garantir área total
+        Write-Host "Monitor principal encontrado:" -ForegroundColor Cyan
+        Write-Host "  Resolução: $($primaryBounds.Width)x$($primaryBounds.Height)" -ForegroundColor Gray
+        Write-Host "  Posição: X=$($primaryBounds.X), Y=$($primaryBounds.Y)" -ForegroundColor Gray
+        Write-Host ""
+        
+        # Obter todas as janelas com handle válido
+        $windows = Get-Process | Where-Object { 
+            $_.MainWindowHandle -ne [IntPtr]::Zero
+        }
+        
+        Write-Host "Encontradas $($windows.Count) janela(s) para processar..." -ForegroundColor Yellow
+        Write-Host ""
+        
+        $movedCount = 0
+        $restoredCount = 0
+        $skippedCount = 0
+        $failedCount = 0
+        
+        foreach ($window in $windows) {
+            $handle = $window.MainWindowHandle
+            
+            try {
+                # Verificar se é uma janela válida
+                if (-not [Win32Window]::IsWindow($handle)) {
+                    $skippedCount++
+                    continue
+                }
+                
+                # Verificar se a janela está minimizada e restaurar
+                $isMinimized = [Win32Window]::IsIconic($handle)
+                
+                if ($isMinimized) {
+                    $restored = [Win32Window]::ShowWindow($handle, [Win32Window]::SW_RESTORE)
+                    if ($restored) {
+                        $restoredCount++
+                        Start-Sleep -Milliseconds 150  # Aguardar janela restaurar
+                    }
+                }
+                
+                # Ignorar janelas sem título (geralmente são do sistema)
+                if ([string]::IsNullOrWhiteSpace($window.MainWindowTitle)) {
+                    $skippedCount++
+                    continue
+                }
+                
+                # Obter dimensões atuais da janela
+                $rect = New-Object Win32Window+RECT
+                $success = [Win32Window]::GetWindowRect($handle, [ref]$rect)
+                
+                if (-not $success) {
+                    $failedCount++
+                    continue
+                }
+                
+                $windowWidth = $rect.Right - $rect.Left
+                $windowHeight = $rect.Bottom - $rect.Top
+                
+                # Ignorar janelas muito pequenas (provavelmente não são janelas de aplicativo)
+                if ($windowWidth -lt 50 -or $windowHeight -lt 50) {
+                    $skippedCount++
+                    continue
+                }
+                
+                # Verificar se a janela está completamente dentro do monitor principal
+                $isFullyOnPrimary = ($rect.Left -ge $primaryBounds.Left -and 
+                                     $rect.Right -le $primaryBounds.Right -and 
+                                     $rect.Top -ge $primaryBounds.Top -and 
+                                     $rect.Bottom -le $primaryBounds.Bottom)
+                
+                # Se a janela já está completamente no monitor principal, pular
+                if ($isFullyOnPrimary) {
+                    $skippedCount++
+                    continue
+                }
+                
+                # Calcular nova posição no monitor principal
+                # Tentar manter tamanho original, mas ajustar se necessário
+                $maxWidth = $primaryBounds.Width - 20  # Margem de segurança
+                $maxHeight = $primaryBounds.Height - 20
+                
+                $finalWidth = $windowWidth
+                $finalHeight = $windowHeight
+                
+                # Redimensionar se a janela for maior que o monitor
+                if ($windowWidth -gt $maxWidth) {
+                    $finalWidth = $maxWidth
+                }
+                if ($windowHeight -gt $maxHeight) {
+                    $finalHeight = $maxHeight
+                }
+                
+                # Calcular posição centralizada no monitor principal
+                $newX = $primaryBounds.Left + (($primaryBounds.Width - $finalWidth) / 2)
+                $newY = $primaryBounds.Top + (($primaryBounds.Height - $finalHeight) / 2)
+                
+                # Garantir que a janela fique completamente dentro dos limites
+                if ($newX -lt $primaryBounds.Left) { 
+                    $newX = $primaryBounds.Left + 10 
+                }
+                if ($newY -lt $primaryBounds.Top) { 
+                    $newY = $primaryBounds.Top + 10 
+                }
+                if ($newX + $finalWidth -gt $primaryBounds.Right) {
+                    $newX = $primaryBounds.Right - $finalWidth - 10
+                    if ($newX -lt $primaryBounds.Left) { $newX = $primaryBounds.Left + 10 }
+                }
+                if ($newY + $finalHeight -gt $primaryBounds.Bottom) {
+                    $newY = $primaryBounds.Bottom - $finalHeight - 10
+                    if ($newY -lt $primaryBounds.Top) { $newY = $primaryBounds.Top + 10 }
+                }
+                
+                # Garantir valores válidos
+                if ($newX -lt 0) { $newX = 10 }
+                if ($newY -lt 0) { $newY = 10 }
+                if ($finalWidth -lt 100) { $finalWidth = 100 }
+                if ($finalHeight -lt 100) { $finalHeight = 100 }
+                
+                # Mover a janela usando SetWindowPos (mais confiável que MoveWindow)
+                # Usar as dimensões finais ajustadas para garantir que caiba no monitor
+                $flags = [Win32Window]::SWP_NOZORDER -bor [Win32Window]::SWP_SHOWWINDOW
+                $moved = [Win32Window]::SetWindowPos($handle, [IntPtr]::Zero, [int]$newX, [int]$newY, [int]$finalWidth, [int]$finalHeight, $flags)
+                
+                # Aguardar um pouco para a janela se mover
+                Start-Sleep -Milliseconds 50
+                
+                # Verificar se a janela foi movida corretamente
+                $verifyRect = New-Object Win32Window+RECT
+                $verifySuccess = [Win32Window]::GetWindowRect($handle, [ref]$verifyRect)
+                
+                if ($verifySuccess) {
+                    # Verificar se está completamente no monitor principal
+                    $isNowOnPrimary = ($verifyRect.Left -ge $primaryBounds.Left -and 
+                                       $verifyRect.Right -le $primaryBounds.Right -and 
+                                       $verifyRect.Top -ge $primaryBounds.Top -and 
+                                       $verifyRect.Bottom -le $primaryBounds.Bottom)
+                    
+                    if (-not $isNowOnPrimary) {
+                        # Se ainda não está completamente no principal, tentar mover novamente
+                        $moved = [Win32Window]::SetWindowPos($handle, [IntPtr]::Zero, [int]$newX, [int]$newY, [int]$finalWidth, [int]$finalHeight, $flags)
+                        Start-Sleep -Milliseconds 50
+                    }
+                }
+                
+                if ($moved) {
+                    $movedCount++
+                    $title = if ([string]::IsNullOrWhiteSpace($window.MainWindowTitle)) { 
+                        "[Sem título - PID: $($window.Id)]" 
+                    } else { 
+                        $window.MainWindowTitle 
+                    }
+                    Write-Host "  ✓ Movido: $title" -ForegroundColor Green
+                } else {
+                    $failedCount++
+                    Write-Host "  ✗ Falhou: $($window.MainWindowTitle)" -ForegroundColor Yellow
+                }
+                
+            } catch {
+                $failedCount++
+                $title = if ([string]::IsNullOrWhiteSpace($window.MainWindowTitle)) { 
+                    "[Sem título - PID: $($window.Id)]" 
+                } else { 
+                    $window.MainWindowTitle 
+                }
+                Write-Host "  ✗ Erro: $title - $($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
+        
+        Write-Host ""
+        Write-Host "Processo concluído!" -ForegroundColor Cyan
+        Write-Host "  Janelas restauradas: $restoredCount" -ForegroundColor Cyan
+        Write-Host "  Janelas movidas: $movedCount" -ForegroundColor Green
+        Write-Host "  Janelas ignoradas: $skippedCount" -ForegroundColor Gray
+        Write-Host "  Falhas: $failedCount" -ForegroundColor Yellow
+        
+    } catch {
+        Write-Host "Erro ao executar função: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Detalhes: $($_.Exception.StackTrace)" -ForegroundColor Yellow
+    }
+}
+
+# Criar alias curto para facilitar o uso
+Set-Alias -Name mwm -Value move-windows-to-main-monitor -Force

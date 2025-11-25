@@ -91,6 +91,19 @@ refreshProfile
 refreshProfile -Silent
 ```
 
+#### 2. Organizando Janelas em Múltiplos Monitores
+
+```powershell
+# Mover todas as janelas para o monitor principal (alias curto)
+mwm
+
+# Mover todas as janelas para o monitor principal (comando completo)
+move-windows-to-main-monitor
+
+# Ver ajuda detalhada
+mwm -Help
+```
+
 ## 📋 Fluxos de Trabalho Completos
 
 ### 🔄 Fluxo de Desenvolvimento Típico

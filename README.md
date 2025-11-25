@@ -20,6 +20,7 @@ Este repositório contém comandos PowerShell customizados que facilitam tarefas
 - **tree-show**: Exibe estrutura de diretórios usando tree
 - **project-dump**: Gera mapa completo do diretório
 - **ListFilesWithContent**: Lista arquivos e conteúdo com filtros de extensão e limite de tamanho
+- **mwm** (ou **move-windows-to-main-monitor**): Move todas as janelas para o monitor principal
 
 ## 🚀 Instalação
 
