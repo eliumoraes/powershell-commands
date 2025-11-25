@@ -16,6 +16,7 @@ Esta seção contém documentação detalhada para todos os comandos disponívei
 - [tree-show](#tree-show)
 - [project-dump](#project-dump)
 - [ListFilesWithContent](#listfileswithcontent)
+- [move-windows-to-main-monitor](#move-windows-to-main-monitor)
 
 ---
 
@@ -225,18 +226,75 @@ project-dump -MaxSizeKB 1024
 
 ### ListFilesWithContent
 
-**Descrição**: Lista arquivos e seu conteúdo em um arquivo temporário.
+**Descrição**: Lista arquivos em um diretório e exibe seu conteúdo em um arquivo temporário, com filtros de extensão e limite de tamanho.
 
 **Sintaxe**:
 ```powershell
-ListFilesWithContent
+ListFilesWithContent [-Path <string>] [-IncludeExtensions <string[]>] [-ExcludeExtensions <string[]>] [-MaxFileSizeKB <int>] [-Help]
 ```
+
+**Parâmetros**:
+- `-Path <string>`: Caminho do diretório a ser analisado (padrão: diretório atual)
+- `-IncludeExtensions <string[]>`: Extensões de arquivo a incluir (padrão: ps1, txt, md, json, xml, config)
+- `-ExcludeExtensions <string[]>`: Extensões de arquivo a excluir (padrão: exe, dll, pdb, zip, 7z)
+- `-MaxFileSizeKB <int>`: Tamanho máximo do arquivo em KB (padrão: 100)
+- `-Help`: Exibe a ajuda detalhada
 
 **Exemplos**:
 ```powershell
-# Listar arquivos e conteúdo
+# Listar arquivos do diretório atual
 ListFilesWithContent
+
+# Listar arquivos de diretório específico
+ListFilesWithContent -Path "C:\MeuProjeto"
+
+# Incluir apenas arquivos PowerShell e Markdown
+ListFilesWithContent -IncludeExtensions "*.ps1", "*.md"
+
+# Excluir arquivos binários
+ListFilesWithContent -ExcludeExtensions "*.exe", "*.dll"
+
+# Limitar tamanho de arquivos
+ListFilesWithContent -MaxFileSizeKB 50
+
+# Ver ajuda
+ListFilesWithContent -Help
 ```
+
+---
+
+### move-windows-to-main-monitor (alias: mwm)
+
+**Descrição**: Move todas as janelas abertas e visíveis para o monitor principal do sistema. Janelas minimizadas são restauradas automaticamente antes de serem movidas.
+
+**Sintaxe**:
+```powershell
+mwm [-Help]
+# ou
+move-windows-to-main-monitor [-Help]
+```
+
+**Parâmetros**:
+- `-Help`: Exibe a ajuda detalhada
+
+**Exemplos**:
+```powershell
+# Mover todas as janelas para o monitor principal (alias curto)
+mwm
+
+# Mover todas as janelas para o monitor principal (comando completo)
+move-windows-to-main-monitor
+
+# Ver ajuda
+mwm -Help
+```
+
+**Notas**:
+- A função restaura janelas minimizadas antes de movê-las
+- Janelas que já estão completamente no monitor principal são ignoradas
+- Janelas grandes são redimensionadas automaticamente para caber no monitor principal
+- A função usa Win32 API (SetWindowPos) para garantir compatibilidade com todas as aplicações Windows
+- Verifica após mover se a janela ficou completamente no monitor e tenta novamente se necessário
 
 ---
 
