@@ -19,7 +19,8 @@ Este repositório contém comandos PowerShell customizados que facilitam tarefas
 - **refreshProfile**: Limpa e recarrega o profile
 - **tree-show**: Exibe estrutura de diretórios usando tree
 - **project-dump**: Gera mapa completo do diretório
-- **ListFilesWithContent**: Lista arquivos e conteúdo com filtros de extensão e limite de tamanho
+- **ListFilesWithContent**: Lista arquivos e conteúdo
+- **mwm** (ou **move-windows-to-main-monitor**): Move todas as janelas para o monitor principal
 
 ## 🚀 Instalação
 

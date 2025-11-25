@@ -9,6 +9,11 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - Nova implementação completa da função `ListFilesWithContent` com filtros de extensão e limite de tamanho
+- Função `move-windows-to-main-monitor` (alias: `mwm`): Move todas as janelas visíveis para o monitor principal
+  - Restaura janelas minimizadas automaticamente
+  - Redimensiona janelas grandes para caber no monitor principal
+  - Verifica se janelas ficaram completamente no monitor após mover
+  - Usa Win32 API SetWindowPos para maior confiabilidade
 
 ### Changed
 - Função `gitdiff-branches` agora sempre mostra estado completo do working directory
