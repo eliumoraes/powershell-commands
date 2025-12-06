@@ -3,53 +3,245 @@ Write-Host "Que tudo em mim seja para a glória de Deus. Senhor, eu clamo por lu
 Write-Host "Que Deus Ilumine meu dia!" -ForegroundColor Green
 Write-Host ""
 
-# Menu de comandos compacto
-function Show-CompactMenu {
-    $version = "v1.1.0"
-    Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║                              COMANDOS DISPONÍVEIS                            ║" -ForegroundColor Cyan
-    Write-Host "║                                    $version                                    ║" -ForegroundColor Cyan
-    Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
+# Carregar configurações do appsettings.json
+$script:AppSettings = $null
+$script:MenuMinimized = $false
+$script:MenuActivationCommand = "menu"
 
-    # Seção: Comandos Git Diff
-    Write-Host "║  [GIT DIFF]                                                                  ║" -ForegroundColor Yellow
-    Write-Host "║    • gitdiff-working [-ignore '...'] [-limitLines n] [-help]                 ║" -ForegroundColor White
-    Write-Host "║      Diff de arquivos não preparados (working directory)                     ║" -ForegroundColor Gray
-    Write-Host "║    • gitdiff-staged [-help]                                                  ║" -ForegroundColor White
-    Write-Host "║      Diff de arquivos preparados (staged)                                    ║" -ForegroundColor Gray
-    Write-Host "║    • gitdiff-branches [-target <branch>] [-source <branch>] [-ignore '...']  ║" -ForegroundColor White
-    Write-Host "║      Diff entre duas branches                                                ║" -ForegroundColor Gray
+function Load-AppSettings {
+    # Determinar o caminho do diretório do profile
+    $profileDir = Split-Path -Parent $PROFILE
+    if (-not $profileDir) {
+        # Fallback: usar o diretório atual se não conseguir determinar
+        $profileDir = (Get-Location).Path
+    }
+    
+    $settingsPath = Join-Path $profileDir "appsettings.json"
+    if (Test-Path $settingsPath) {
+        try {
+            $jsonContent = Get-Content -Path $settingsPath -Raw -ErrorAction Stop
+            $script:AppSettings = $jsonContent | ConvertFrom-Json
+            $script:MenuMinimized = $script:AppSettings.Menu.MinimizeOnStart
+            $script:MenuActivationCommand = $script:AppSettings.Menu.ActivationCommand
+        } catch {
+            Write-Host "Aviso: Erro ao carregar appsettings.json: $($_.Exception.Message)" -ForegroundColor Yellow
+            $script:AppSettings = $null
+        }
+    }
+}
 
-    # Seção: Comandos Git Stash
-    Write-Host "║                                                                              ║" -ForegroundColor Cyan
-    Write-Host "║  [GIT STASH]                                                                 ║" -ForegroundColor Yellow
-    Write-Host "║    • gitstash-show [-stash <ref>] [-help]                                    ║" -ForegroundColor White
-    Write-Host "║      Exibe um stash em arquivo temporário                                    ║" -ForegroundColor Gray
-    Write-Host "║    • gitstash-triple [-name <string>] [-help]                                ║" -ForegroundColor White
-    Write-Host "║      Cria três stashes separados (complete, unstaged, staged)                ║" -ForegroundColor Gray
+# Carregar configurações
+Load-AppSettings
 
-    # Seção: Comandos de Sistema
-    Write-Host "║                                                                              ║" -ForegroundColor Cyan
-    Write-Host "║  [SISTEMA]                                                                   ║" -ForegroundColor Yellow
-    Write-Host "║    • refreshProfile                                                          ║" -ForegroundColor White
-    Write-Host "║      Limpa e recarrega o profile                                             ║" -ForegroundColor Gray
-    Write-Host "║    • tree-show                                                               ║" -ForegroundColor White
-    Write-Host "║      Exibe estrutura de diretórios usando tree                               ║" -ForegroundColor Gray
-    Write-Host "║    • project-dump [-Path <pasta>] [-ExcludeBinary] [-MaxSizeKB <n>]          ║" -ForegroundColor White
-    Write-Host "║      Gera mapa completo do diretório                                         ║" -ForegroundColor Gray
-    Write-Host "║    • ListFilesWithContent                                                    ║" -ForegroundColor White
-    Write-Host "║      Lista arquivos e conteúdo                                               ║" -ForegroundColor Gray
-    Write-Host "║    • mwm (ou move-windows-to-main-monitor) [-Help]                           ║" -ForegroundColor White
-    Write-Host "║      Move todas as janelas para o monitor principal                           ║" -ForegroundColor Gray
+# Detectar versão do PowerShell para melhor renderização
+function Get-PowerShellVersion {
+    return $PSVersionTable.PSVersion
+}
 
-    Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
-    Write-Host "║  DICA: Use -help em qualquer comando para ver ajuda detalhada                ║" -ForegroundColor Green
-    Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+# Função para detectar se o terminal suporta caracteres Unicode/Box Drawing
+function Test-UnicodeSupport {
+    try {
+        $psVersion = Get-PowerShellVersion
+        
+        # PowerShell 7+ geralmente tem melhor suporte a Unicode
+        if ($psVersion.Major -ge 7) {
+            # Verificar se estamos em um terminal moderno
+            $hostName = $Host.Name
+            # Windows Terminal, VS Code terminal, e outros terminais modernos suportam bem
+            if ($hostName -ne "ConsoleHost" -or $env:WT_SESSION) {
+                return $true
+            }
+            # Mesmo no console padrão, PowerShell 7+ geralmente funciona melhor
+            return $true
+        }
+        
+        # Para PowerShell 5.1, ser mais conservador
+        # O console padrão do Windows PowerShell 5.1 geralmente não renderiza bem Unicode
+        $hostName = $Host.Name
+        if ($hostName -eq "ConsoleHost") {
+            # Verificar se está usando Windows Terminal (detectado via variável de ambiente)
+            if ($env:WT_SESSION) {
+                return $true
+            }
+            
+            # Verificar encoding UTF-8
+            $outputEncoding = [Console]::OutputEncoding
+            if ($outputEncoding -and $outputEncoding.CodePage -eq 65001) {
+                # Mesmo com UTF-8, o console padrão do Windows pode não renderizar bem
+                # A menos que esteja usando Windows Terminal
+                return $false
+            }
+            
+            # Console padrão do Windows PowerShell 5.1: usar ASCII
+            return $false
+        }
+        
+        # Outros hosts (ISE, VS Code, etc.) geralmente suportam Unicode
+        return $true
+        
+    } catch {
+        # Em caso de erro, assumir que não suporta (mais seguro)
+        return $false
+    }
+}
+
+# Menu minimizado
+function Show-MinimizedMenu {
+    $version = if ($script:AppSettings) { "v$($script:AppSettings.Version)" } else { "v1.2.0" }
+    $command = $script:MenuActivationCommand
+    $useUnicode = Test-UnicodeSupport
+    
+    # Usar caracteres baseados no suporte Unicode
+    $horizontal = if ($useUnicode) { "═" } else { "=" }
+    $line = $horizontal * 79
+    
+    Write-Host $line -ForegroundColor Cyan
+    Write-Host "  PowerShell Commands Collection - $version" -ForegroundColor Cyan
+    Write-Host "  Menu minimizado. Digite '$command' para ver todos os comandos disponiveis." -ForegroundColor Yellow
+    Write-Host $line -ForegroundColor Cyan
     Write-Host ""
 }
 
-# Chama a função para exibir o menu compacto
-Show-CompactMenu
+# Menu de comandos compacto com melhor renderização
+function Show-CompactMenu {
+    $version = if ($script:AppSettings) { "v$($script:AppSettings.Version)" } else { "v1.2.0" }
+    $useUnicode = Test-UnicodeSupport
+    
+    # Escolher caracteres baseado no suporte Unicode
+    if ($useUnicode) {
+        $topLeft = "╔"
+        $topRight = "╗"
+        $bottomLeft = "╚"
+        $bottomRight = "╝"
+        $horizontal = "═"
+        $vertical = "║"
+        $topT = "╠"
+        $bottomT = "╣"
+        $bullet = "•"
+    } else {
+        # Fallback para ASCII melhorado quando Unicode não é suportado adequadamente
+        $topLeft = "+"
+        $topRight = "+"
+        $bottomLeft = "+"
+        $bottomRight = "+"
+        $horizontal = "="
+        $vertical = "|"
+        $topT = "+"
+        $bottomT = "+"
+        $bullet = "*"  # Usar asterisco ao invés de bullet Unicode
+    }
+    
+    $width = 78
+    $topLine = $topLeft + ($horizontal * $width) + $topRight
+    $bottomLine = $bottomLeft + ($horizontal * $width) + $bottomRight
+    $divider = $topT + ($horizontal * $width) + $bottomT
+    $emptyLine = $vertical + (" " * $width) + $vertical
+    
+    # Função helper para criar linhas com padding correto
+    function Format-MenuLine {
+        param(
+            [string]$Content,
+            [int]$TotalWidth = $width,
+            [string]$VerticalChar = $vertical
+        )
+        $contentLength = $Content.Length
+        $padding = $TotalWidth - $contentLength
+        if ($padding -lt 0) { $padding = 0 }
+        return $VerticalChar + $Content + (" " * $padding) + $VerticalChar
+    }
+    
+    # Título centralizado
+    $title = "COMANDOS DISPONIVEIS"
+    $versionText = $version
+    $titlePadding = [math]::Floor(($width - $title.Length) / 2)
+    $versionPadding = [math]::Floor(($width - $versionText.Length) / 2)
+    
+    Write-Host $topLine -ForegroundColor Cyan
+    Write-Host ($vertical + (" " * $titlePadding) + $title + (" " * ($width - $title.Length - $titlePadding)) + $vertical) -ForegroundColor Cyan
+    Write-Host ($vertical + (" " * $versionPadding) + $versionText + (" " * ($width - $versionText.Length - $versionPadding)) + $vertical) -ForegroundColor Cyan
+    Write-Host $divider -ForegroundColor Cyan
+
+    # Seção: Comandos Git Diff
+    Write-Host (Format-MenuLine "  [GIT DIFF]") -ForegroundColor Yellow
+    Write-Host (Format-MenuLine "    $bullet gitdiff-working [-ignore '...'] [-limitLines n] [-help]") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Diff de arquivos nao preparados (working directory)") -ForegroundColor Gray
+    Write-Host (Format-MenuLine "    $bullet gitdiff-staged [-help]") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Diff de arquivos preparados (staged)") -ForegroundColor Gray
+    Write-Host (Format-MenuLine "    $bullet gitdiff-branches [-target <branch>] [-source <branch>] [-ignore '...']") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Diff entre duas branches") -ForegroundColor Gray
+
+    # Seção: Comandos Git Stash
+    Write-Host $emptyLine -ForegroundColor Cyan
+    Write-Host (Format-MenuLine "  [GIT STASH]") -ForegroundColor Yellow
+    Write-Host (Format-MenuLine "    $bullet gitstash-show [-stash <ref>] [-help]") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Exibe um stash em arquivo temporario") -ForegroundColor Gray
+    Write-Host (Format-MenuLine "    $bullet gitstash-triple [-name <string>] [-help]") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Cria tres stashes separados (complete, unstaged, staged)") -ForegroundColor Gray
+
+    # Seção: Comandos de Sistema
+    Write-Host $emptyLine -ForegroundColor Cyan
+    Write-Host (Format-MenuLine "  [SISTEMA]") -ForegroundColor Yellow
+    Write-Host (Format-MenuLine "    $bullet refreshProfile") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Limpa e recarrega o profile") -ForegroundColor Gray
+    Write-Host (Format-MenuLine "    $bullet tree-show") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Exibe estrutura de diretorios usando tree") -ForegroundColor Gray
+    Write-Host (Format-MenuLine "    $bullet project-dump [-Path <pasta>] [-ExcludeBinary] [-MaxSizeKB <n>]") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Gera mapa completo do diretorio") -ForegroundColor Gray
+    Write-Host (Format-MenuLine "    $bullet ListFilesWithContent") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Lista arquivos e conteudo") -ForegroundColor Gray
+    Write-Host (Format-MenuLine "    $bullet mwm (ou move-windows-to-main-monitor) [-Help]") -ForegroundColor White
+    Write-Host (Format-MenuLine "      Move todas as janelas para o monitor principal") -ForegroundColor Gray
+
+    Write-Host $divider -ForegroundColor Cyan
+    Write-Host (Format-MenuLine "  DICA: Use -help em qualquer comando para ver ajuda detalhada") -ForegroundColor Green
+    Write-Host $bottomLine -ForegroundColor Cyan
+    Write-Host ""
+}
+
+# Função para exibir o menu (comando de ativação)
+function Show-Menu {
+    [CmdletBinding()]
+    param(
+        [switch]$Help
+    )
+    
+    if ($Help) {
+        Write-Host "NOME" -ForegroundColor Cyan
+        Write-Host "    Show-Menu (ou $($script:MenuActivationCommand))"
+        Write-Host ""
+        Write-Host "SINOPSIS" -ForegroundColor Cyan
+        Write-Host "    Exibe o menu completo de comandos disponíveis."
+        Write-Host ""
+        Write-Host "DESCRIÇÃO" -ForegroundColor Cyan
+        Write-Host "    Este comando exibe o menu completo com todos os comandos disponíveis"
+        Write-Host "    no PowerShell profile."
+        return
+    }
+    
+    Show-CompactMenu
+}
+
+# Criar função dinâmica e alias para o comando de ativação do menu
+if ($script:MenuActivationCommand) {
+    # Criar função dinâmica baseada no comando de ativação
+    $activationCmd = $script:MenuActivationCommand
+    $functionBody = @"
+function global:$activationCmd {
+    Show-Menu
+}
+"@
+    Invoke-Expression $functionBody
+    
+    # Também criar alias como fallback
+    Set-Alias -Name $activationCmd -Value Show-Menu -Force -Scope Global -ErrorAction SilentlyContinue
+}
+
+# Chama a função apropriada baseado na configuração
+if ($script:MenuMinimized) {
+    Show-MinimizedMenu
+} else {
+    Show-CompactMenu
+}
 
 # Função melhorada para recarregar o profile
 function refreshProfile {
