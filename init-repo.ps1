@@ -84,7 +84,7 @@ git add .
 
 # Fazer o primeiro commit
 Write-Host "💾 Criando primeiro commit..." -ForegroundColor Cyan
-git commit -m "feat: initial commit - PowerShell Commands Collection v1.1.0
+git commit -m "feat: initial commit - PowerShell Commands Collection v1.2.0
 
 - Adiciona comandos Git para diff e stash
 - Adiciona comandos de sistema para análise de projetos

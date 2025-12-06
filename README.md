@@ -21,6 +21,7 @@ Este repositório contém comandos PowerShell customizados que facilitam tarefas
 - **project-dump**: Gera mapa completo do diretório
 - **ListFilesWithContent**: Lista arquivos e conteúdo com filtros de extensão e limite de tamanho
 - **mwm** (ou **move-windows-to-main-monitor**): Move todas as janelas para o monitor principal
+- **menu** (ou comando configurado): Exibe o menu completo de comandos (quando menu está minimizado)
 
 ## 🚀 Instalação
 
@@ -34,7 +35,13 @@ git clone https://github.com/seu-usuario/powershell-commands.git
 Copy-Item "Microsoft.PowerShell_profile.ps1" "$PROFILE"
 ```
 
-3. Recarregue o PowerShell ou execute:
+3. (Opcional) Copie o arquivo de configuração:
+```powershell
+$profileDir = Split-Path -Parent $PROFILE
+Copy-Item "appsettings.json" "$profileDir\appsettings.json"
+```
+
+4. Recarregue o PowerShell ou execute:
 ```powershell
 . $PROFILE
 ```
@@ -44,12 +51,51 @@ Copy-Item "Microsoft.PowerShell_profile.ps1" "$PROFILE"
 ```
 powershell-commands/
 ├── Microsoft.PowerShell_profile.ps1  # Perfil principal
+├── appsettings.json                  # Configurações do profile
 ├── README.md                         # Este arquivo
 ├── CHANGELOG.md                      # Histórico de mudanças
 ├── LICENSE                           # Licença do projeto
 └── docs/                            # Documentação adicional
     ├── commands/                     # Documentação dos comandos
     └── examples/                     # Exemplos de uso
+```
+
+## ⚙️ Configuração
+
+O profile suporta configuração via arquivo `appsettings.json`. Coloque este arquivo no mesmo diretório do seu profile PowerShell.
+
+### Exemplo de `appsettings.json`:
+
+```json
+{
+  "Menu": {
+    "MinimizeOnStart": false,
+    "ActivationCommand": "menu"
+  },
+  "Version": "1.2.0"
+}
+```
+
+### Opções de Configuração:
+
+- **`Menu.MinimizeOnStart`** (boolean): Se `true`, o menu inicia minimizado. Padrão: `false`
+- **`Menu.ActivationCommand`** (string): Comando para exibir o menu completo quando minimizado. Padrão: `"menu"`
+- **`Version`** (string): Versão do profile (usado para exibição no menu)
+
+### Menu Minimizado
+
+Quando `MinimizeOnStart` está ativado, o menu inicia oculto e mostra apenas uma mensagem indicando que comandos estão disponíveis. Para ver o menu completo, digite o comando configurado em `ActivationCommand` (padrão: `menu`).
+
+Exemplo:
+```powershell
+# Com menu minimizado ativado, você verá:
+═══════════════════════════════════════════════════════════════════════════════
+  PowerShell Commands Collection - v1.2.0
+  Menu minimizado. Digite 'menu' para ver todos os comandos disponíveis.
+═══════════════════════════════════════════════════════════════════════════════
+
+# Digite 'menu' para ver o menu completo
+menu
 ```
 
 ## 🌿 Estratégia de Branch
@@ -222,8 +268,8 @@ Seguimos [Semantic Versioning](https://semver.org/):
 
 - `v1.0.0`: Primeira versão estável
 - `v1.1.0`: Melhorias nas funções gitdiff-branches e ListFilesWithContent
-- `v1.1.0`: Nova funcionalidade adicionada
-- `v1.1.1`: Correção de bug
+- `v1.2.0`: Sistema de configuração appsettings.json e menu minimizado
+- `v1.2.1`: Correção de bug
 - `v2.0.0`: Breaking change
 
 ## 📝 Contribuindo
@@ -245,5 +291,5 @@ Este projeto está licenciado sob a licença MIT - veja o arquivo [LICENSE](LICE
 
 ---
 
-**Versão Atual**: v1.1.0  
-**Última Atualização**: $(Get-Date -Format "dd/MM/yyyy") 
+**Versão Atual**: v1.2.0  
+**Última Atualização**: 20/12/2024 
